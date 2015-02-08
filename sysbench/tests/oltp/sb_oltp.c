@@ -79,6 +79,7 @@ static sb_arg_t oltp_args[] =
   {"oltp-point-select-mysql-handler", "Use MySQL HANDLER for point select", SB_ARG_TYPE_FLAG, "off"},
   {"oltp-point-select-all-cols", "select all columns for the point-select query", SB_ARG_TYPE_FLAG, "off"},
   {"oltp-secondary", "Use a secondary index in place of the PRIMARY index", SB_ARG_TYPE_FLAG, "off"},
+  {"oltp-primary-only", "Use only PRIMARY index", SB_ARG_TYPE_FLAG, "off"},
   {NULL, NULL, SB_ARG_TYPE_NULL, NULL}
 };
 
@@ -150,6 +151,7 @@ typedef struct
   unsigned int     point_select_mysql_handler;
   unsigned int     point_select_all_cols;
   unsigned int     secondary;
+  unsigned int     primary_only;
 } oltp_args_t;
 
 /* Test statements structure */
@@ -417,16 +419,20 @@ int oltp_cmd_prepare(void)
       goto error;
     }
   }
-  
-  /* Create secondary index on 'k' */
-  snprintf(query, query_len,
-           "CREATE INDEX k on %s(k)",
-           args.table_name);
-  if (db_query(con, query) == NULL)
+
+  if (!args.primary_only)
   {
-    log_text(LOG_FATAL, "failed to create secondary index on table!");
-    goto error;
+    /* Create secondary index on 'k' */
+    snprintf(query, query_len,
+             "CREATE INDEX k on %s(k)",
+             args.table_name);
+    if (db_query(con, query) == NULL)
+    {
+      log_text(LOG_FATAL, "failed to create secondary index on table!");
+      goto error;
+    }
   }
+
   /* Fill test table with data */
   log_text(LOG_NOTICE, "Creating %d records in table '%s'...", args.table_size,
          args.table_name);
@@ -1626,6 +1632,7 @@ int parse_arguments(void)
   args.point_select_mysql_handler = sb_get_value_flag("oltp-point-select-mysql-handler");
   args.point_select_all_cols = sb_get_value_flag("oltp-point-select-all-cols");
   args.secondary = sb_get_value_flag("oltp-secondary");
+  args.primary_only = sb_get_value_flag("oltp-primary-only");
 
   if (args.auto_inc && args.secondary)
   {
